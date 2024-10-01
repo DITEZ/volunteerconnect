@@ -10,7 +10,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:io';
 import 'dart:typed_data'; // For Base64 encoding
 import 'package:volunteerconnect/views/screens/login.dart';
-
 import 'package:volunteerconnect/controllers/message_controller.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -37,32 +36,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body)['opportunities'];
+      final Map<String, dynamic> responseData = json.decode(response.body);
+      if (responseData['success'] == true) {
+        final List<dynamic> data = responseData['opportunities'];
 
-      setState(() {
-        volunteerOpportunities.clear();
-        volunteerOpportunities.addAll(data.map((item) {
-          // Decode the image from Base64 to a byte array
-          Uint8List imageBytes = base64Decode(item['image']);
-          return {
-            'id': item['id'], // Add id to the opportunity
-            'location': item['location'],
-            'date': item['date'],
-            'description': item['description'],
-            'contact': item['contact'],
-            'imageBytes': imageBytes, // Store the decoded image bytes
-          };
-        }).toList());
-      });
+        setState(() {
+          volunteerOpportunities.clear();
+          volunteerOpportunities.addAll(data.map((item) {
+            String? base64Image;
+            if (item['image'] != null && item['image'].isNotEmpty) {
+              base64Image = item['image'];
+            }
+            return {
+              'id': item['id'],
+              'location': item['location'],
+              'date': item['date'],
+              'description': item['description'],
+              'contact': item['contact'],
+              'image': base64Image, // Store the base64 string instead of decoded bytes
+            };
+          }).toList());
+        });
+      } else {
+        print('API returned an error: ${responseData['error']}');
+      }
     } else {
-      // Handle the error
-      print('Failed to fetch opportunities');
+      print('Failed to fetch opportunities. Status code: ${response.statusCode}');
     }
   } catch (e) {
     print('Error occurred while fetching opportunities: $e');
   }
 }
-
 
   void _onDrawerIconPressed() {
     Get.to(() => ProfilePage());
@@ -264,67 +268,91 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               child: Text("Cancel"),
             ),
-            TextButton(
-              onPressed: () async {
-                // Update the opportunity in the database and in the list
-                final response = await http.post(
-                  Uri.parse(
-                      'http://iknowuwatching.c1.biz/ted/apis/update_opportunities.php'),
-                  body: {
-                    'id': opportunity['id'].toString(),
-                    'location': _locationController.text,
-                    'date': _dateController.text,
-                    'description': _descriptionController.text,
-                    'contact': _contactController.text,
-                    'image': _imagePath,
-                  },
-                );
+    TextButton(
+  onPressed: () async {
+    // Prepare the data as a Map
+    Map<String, dynamic> data = {
+      'id': opportunity['id'].toString(),
+      'location': _locationController.text,
+      'date': _dateController.text,
+      'description': _descriptionController.text,
+      'contact': _contactController.text,
+    };
 
-                final responseData = json.decode(response.body);
+    // Add image data if available
+    if (_imagePath != null) {
+      List<int> imageBytes = await File(_imagePath!).readAsBytes();
+      String base64Image = base64Encode(imageBytes);
+      data['image'] = base64Image;
+    }
 
-                if (responseData['success']) {
-                  setState(() {
-                    volunteerOpportunities[index] = {
-                      'id': opportunity['id'],
-                      'location': _locationController.text,
-                      'date': _dateController.text,
-                      'description': _descriptionController.text,
-                      'contact': _contactController.text,
-                      'image': _imagePath,
-                    };
-                  });
-                  Navigator.of(context).pop(); // Close the dialog
-                } else {
-                  // Handle the error
-                  print(responseData['message']);
-                }
-              },
-              child: Text("Update"),
-            ),
-            TextButton(
-              onPressed: () async {
-                // Delete the opportunity from the database and remove it from the list
-                final response = await http.post(
-                  Uri.parse(
-                      'http://iknowuwatching.c1.biz/ted/apis/delete_opportunities.php'),
-                  body: {'id': opportunity['id'].toString()},
-                );
+    // Convert the Map to JSON
+    String jsonData = json.encode(data);
 
-                final responseData = json.decode(response.body);
+    // Send the request
+    final response = await http.post(
+      Uri.parse('http://iknowuwatching.c1.biz/ted/apis/update_opportunities.php'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonData,
+    );
 
-                if (responseData['success']) {
-                  setState(() {
-                    volunteerOpportunities.removeAt(index);
-                  });
-                  Navigator.of(context).pop(); // Close the dialog
-                } else {
-                  // Handle the error
-                  print(responseData['message']);
-                }
-              },
-              child: Text("Delete"),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-            ),
+    final responseData = json.decode(response.body);
+
+    if (responseData['success']) {
+      setState(() {
+        volunteerOpportunities[index] = {
+          'id': opportunity['id'],
+          'location': _locationController.text,
+          'date': _dateController.text,
+          'description': _descriptionController.text,
+          'contact': _contactController.text,
+          'image': _imagePath,
+        };
+      });
+      Navigator.of(context).pop(); // Close the dialog
+    } else {
+      // Handle the error
+      print(responseData['message']);
+    }
+  },
+  child: Text("Update"),
+),
+           TextButton(
+  onPressed: () async {
+    // Prepare the data as a Map
+    Map<String, dynamic> data = {
+      'id': opportunity['id'].toString(),
+    };
+
+    // Convert the Map to JSON
+    String jsonData = json.encode(data);
+
+    // Send the delete request
+    final response = await http.post(
+      Uri.parse('http://iknowuwatching.c1.biz/ted/apis/delete_opportunities.php'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonData,
+    );
+
+    final responseData = json.decode(response.body);
+
+    if (responseData['success']) {
+      setState(() {
+        volunteerOpportunities.removeAt(index);
+      });
+      Navigator.of(context).pop(); // Close the dialog
+    } else {
+      // Handle the error
+      print(responseData['message']);
+      // You might want to show an error message to the user here
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete opportunity: ${responseData['message']}')),
+      );
+    }
+  },
+  child: Text("Delete"),
+  style: TextButton.styleFrom(foregroundColor: Colors.red),
+),
           ],
         );
       },

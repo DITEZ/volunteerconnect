@@ -3,10 +3,12 @@ import 'package:get/route_manager.dart';
 import 'package:volunteerconnect/Configurations/routes.dart';
 
 import 'package:get/get.dart';
+import 'package:volunteerconnect/controllers/message_controller.dart';
 import 'package:volunteerconnect/controllers/usercontroller.dart';
 
 void main(){
   Get.put(UserController());
+  //Get.put(MessageController());
   runApp(MyAPP());
 }
 
