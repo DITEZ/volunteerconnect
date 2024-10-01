@@ -29,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _fetchOpportunities(); // Fetch opportunities when the screen is loaded
   }
 
-  void _fetchOpportunities() async {
+void _fetchOpportunities() async {
   try {
     final response = await http.get(
       Uri.parse('http://iknowuwatching.c1.biz/ted/apis/get_opportunities.php'),
@@ -43,9 +43,13 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           volunteerOpportunities.clear();
           volunteerOpportunities.addAll(data.map((item) {
-            String? base64Image;
+            Uint8List? imageBytes;
             if (item['image'] != null && item['image'].isNotEmpty) {
-              base64Image = item['image'];
+              try {
+                imageBytes = base64Decode(item['image']);
+              } catch (e) {
+                print('Error decoding image: $e');
+              }
             }
             return {
               'id': item['id'],
@@ -53,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
               'date': item['date'],
               'description': item['description'],
               'contact': item['contact'],
-              'image': base64Image, // Store the base64 string instead of decoded bytes
+              'imageBytes': imageBytes,
             };
           }).toList());
         });
@@ -67,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
     print('Error occurred while fetching opportunities: $e');
   }
 }
+
 
   void _onDrawerIconPressed() {
     Get.to(() => ProfilePage());
